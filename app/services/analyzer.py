@@ -29,6 +29,7 @@ def sanitize_text(text: Optional[str]) -> Optional[str]:
     - collapses internal whitespace runs
     - removes markdown asterisks (*, **)
     - strips stray escaped quotes, slash-quotes (/ ", \", \”), artifacts, trailing brackets (}, ])
+    - strips stray ", and " or ", " artifacts
     - strips surrounding smart quotes and straight quotes
     """
     if text is None:
@@ -41,17 +42,27 @@ def sanitize_text(text: Optional[str]) -> Optional[str]:
     # 2. Strip stray escaped slash-quotes or artifacts like / ", \", \”, “
     text = re.sub(r'[/\\]\s*["”’“\']', '', text)
 
-    # 3. Collapse multiple whitespace / tabs / carriage returns to single space
+    # 3. Strip internal stray quote artifacts like ", and " or ", "
+    text = re.sub(r'["”’“\']\s*,\s*and\s*["”’“\']', ', and ', text)
+    text = re.sub(r'["”’“\']\s*,\s*["”’“\']', ', ', text)
+    text = re.sub(r'\s*,\s*and\s*["”’“\']', ', and ', text)
+    text = re.sub(r'["”’“\']\s*,\s*and\s+', ', and ', text)
+
+    # 4. Collapse multiple whitespace / tabs / carriage returns to single space
     text = re.sub(r'[ \t\r\f\v]+', ' ', text).strip()
 
-    # 4. Strip surrounding and trailing quote/bracket/punctuation junk
+    # 5. Strip leading/trailing artifacts like ", and ", ", and", "and ", etc.
+    text = re.sub(r'^(?:["”’“\'`\s]*,\s*and\b[\s"”’“\'`]*|["”’“\'`\s]*and\b[\s"”’“\'`]*|["”’“\'`\s]*,[\s"”’“\'`]*)+', '', text, flags=re.IGNORECASE).strip()
+    text = re.sub(r'(?:["”’“\'`\s]*,\s*and\b[\s"”’“\'`]*|["”’“\'`\s]*and\b[\s"”’“\'`]*|["”’“\'`\s]*,[\s"”’“\'`]*)+$', '', text, flags=re.IGNORECASE).strip()
+
+    # 6. Strip surrounding and trailing quote/bracket/punctuation junk
     chars_to_strip = '\"\'`“”‘’«»„‚}] '
     while text and text[0] in chars_to_strip:
         text = text[1:].strip()
     while text and text[-1] in chars_to_strip:
         text = text[:-1].strip()
 
-    # 5. Clean trailing stray punctuation (colons, semicolons, commas, backslashes)
+    # 7. Clean trailing stray punctuation (colons, semicolons, commas, backslashes)
     text = re.sub(r'[,:;\\/]+$', '', text).strip()
 
     # Final check for surrounding quotes
@@ -61,6 +72,71 @@ def sanitize_text(text: Optional[str]) -> Optional[str]:
         text = text[:-1].strip()
 
     return text.strip() if text else None
+
+
+def clean_display_string(text: Optional[str], max_length: Optional[int] = None) -> Optional[str]:
+    """
+    Cleans display strings:
+    - Never cuts mid-word or mid-sentence.
+    - Strips stray ", and " artifacts.
+    """
+    if text is None:
+        return None
+    cleaned = sanitize_text(text)
+    if not cleaned:
+        return None
+
+    if max_length is not None and len(cleaned) > max_length:
+        # Try to find sentence boundary (. ! ?) within max_length
+        m = list(re.finditer(r'[.!?](?:\s+|$)', cleaned[:max_length]))
+        if m:
+            last_sent_end = m[-1].end()
+            if last_sent_end >= 30:
+                return cleaned[:last_sent_end].strip()
+
+        # Fallback to word boundary - never cut mid-word
+        cut = cleaned[:max_length]
+        last_space = cut.rfind(' ')
+        if last_space > 20:
+            cut = cut[:last_space].strip()
+
+        # Clean trailing punctuation or trailing conjunctions/prepositions
+        cut = re.sub(r'[,:;\\/\-–—\s]+$', '', cut)
+        cut = re.sub(r'\b(?:and|or|but|the|a|an|in|on|at|to|for|with|by|of)\b$', '', cut, flags=re.IGNORECASE).strip()
+        cut = re.sub(r'[,:;\\/\-–—\s]+$', '', cut)
+        return cut
+
+    return cleaned
+
+
+def ensure_quote_sentence_boundary(quote: Optional[str], doc_text: Optional[str] = None) -> Optional[str]:
+    """
+    Ensures quote snippets end strictly at a sentence boundary (. ! ?).
+    Never cuts mid-word or mid-sentence.
+    """
+    if not quote:
+        return None
+    clean = sanitize_text(quote)
+    if not clean:
+        return None
+
+    if clean[-1] in ('.', '!', '?'):
+        return clean
+
+    if doc_text and clean in doc_text:
+        sentences = split_text_into_sentences(doc_text)
+        for s in sentences:
+            if clean in s:
+                cs = sanitize_text(s)
+                if cs and cs[-1] in ('.', '!', '?'):
+                    return cs
+
+    # Ensure clean doesn't end on broken punctuation/conjunction
+    clean = re.sub(r'[,:;\\/\-–—\s]+$', '', clean)
+    clean = re.sub(r'\b(?:and|or|but|the|a|an|in|on|at|to|for|with|by|of)\b$', '', clean, flags=re.IGNORECASE).strip()
+    if clean and clean[-1] not in ('.', '!', '?'):
+        clean = clean + '.'
+    return clean
 
 
 def strip_surrounding_quotes(text: str) -> str:
@@ -178,9 +254,30 @@ def is_heading_quote(quote: str) -> bool:
     return False
 
 
+TOPIC_KEYWORDS = {
+    "arbitration", "attorney", "repossession", "repossess", "renewal", "renew",
+    "damages", "penalty", "surcharge", "indemnif", "indemnity", "waiver", "waive",
+    "jury", "interest", "termination", "terminate", "forfeiture", "refund",
+    "discretion", "liability", "lien", "audit"
+}
+
+
+def extract_red_flag_topics(rf: RedFlag) -> set:
+    """Extracts topic keywords from a red flag's issue, category, explanation, and quote."""
+    text = f"{rf.issue} {rf.category or ''} {rf.risk_explanation or ''} {rf.citation.quote if rf.citation else ''}".lower()
+    topics = {kw for kw in TOPIC_KEYWORDS if kw in text}
+    # Also extract meaningful topic words >= 5 letters from issue title
+    words = re.findall(r'\b[a-zA-Z]{5,}\b', rf.issue.lower())
+    for w in words:
+        if w not in {"clause", "rights", "party", "other", "shall", "under", "about", "agreement", "legal"}:
+            topics.add(w)
+    return topics
+
+
 def deduplicate_red_flags(flags: List[RedFlag]) -> Tuple[List[RedFlag], int]:
     """
-    Deduplicates flags whose quotes overlap. Merges them keeping the highest severity.
+    Deduplicates flags whose quotes overlap OR that cite the same chunk and share a topic keyword
+    such as 'arbitration' or 'attorney'. Merges them keeping the highest severity.
     Returns (deduplicated_flags, duplicates_removed_count).
     """
     severity_rank = {"high": 3, "medium": 2, "low": 1}
@@ -191,12 +288,15 @@ def deduplicate_red_flags(flags: List[RedFlag]) -> Tuple[List[RedFlag], int]:
         if not rf.citation or not rf.citation.quote:
             continue
         rf_quote_norm = normalize_text_for_comparison(rf.citation.quote)
+        rf_topics = extract_red_flag_topics(rf)
 
         merged = False
         for existing in deduped:
             ex_quote_norm = normalize_text_for_comparison(existing.citation.quote)
+            ex_topics = extract_red_flag_topics(existing)
 
             overlap = False
+            # 1. Quote overlap or sequence similarity
             if rf_quote_norm == ex_quote_norm:
                 overlap = True
             elif rf_quote_norm in ex_quote_norm or ex_quote_norm in rf_quote_norm:
@@ -206,23 +306,41 @@ def deduplicate_red_flags(flags: List[RedFlag]) -> Tuple[List[RedFlag], int]:
                 if ratio >= 0.70:
                     overlap = True
 
+            # 2. Same chunk and shared topic keyword (e.g. arbitration or attorney)
+            if not overlap and rf.citation.chunk_id and existing.citation.chunk_id:
+                if rf.citation.chunk_id == existing.citation.chunk_id:
+                    shared_topics = rf_topics.intersection(ex_topics)
+                    if shared_topics:
+                        overlap = True
+
             if overlap:
                 # Merge into existing: keep highest severity
                 rf_sev = severity_rank.get(rf.severity.lower(), 1)
                 ex_sev = severity_rank.get(existing.severity.lower(), 1)
                 if rf_sev > ex_sev:
                     existing.severity = rf.severity
-                # Keep longer quote
+                # Keep longer quote (ensuring it ends on a sentence boundary)
                 if len(rf.citation.quote) > len(existing.citation.quote):
                     existing.citation = rf.citation
+                existing.citation.quote = ensure_quote_sentence_boundary(existing.citation.quote)
                 # Keep longer/more detailed issue title
                 if len(rf.issue) > len(existing.issue) and "other" not in rf.issue.lower():
-                    existing.issue = rf.issue
+                    existing.issue = clean_display_string(rf.issue)
+                else:
+                    existing.issue = clean_display_string(existing.issue)
+                # Keep longer risk explanation
+                if len(rf.risk_explanation) > len(existing.risk_explanation):
+                    existing.risk_explanation = clean_display_string(rf.risk_explanation)
+                else:
+                    existing.risk_explanation = clean_display_string(existing.risk_explanation)
                 duplicates_removed += 1
                 merged = True
                 break
 
         if not merged:
+            rf.citation.quote = ensure_quote_sentence_boundary(rf.citation.quote)
+            rf.issue = clean_display_string(rf.issue)
+            rf.risk_explanation = clean_display_string(rf.risk_explanation)
             deduped.append(rf)
 
     return deduped, duplicates_removed
@@ -519,11 +637,9 @@ def extract_deadline_by_regex(cited_text: str) -> Optional[str]:
     if m_net:
         return m_net.group(0).strip()
 
-    m_upon = re.search(r'\bupon\s+[a-zA-Z\s]{3,20}\b', clean, re.IGNORECASE)
+    m_upon = re.search(r'\bupon\s+(?:signing|execution)\b', clean, re.IGNORECASE)
     if m_upon:
-        u_val = m_upon.group(0).strip()
-        if not u_val.lower().startswith("upon written notice") and not u_val.lower().startswith("upon termination"):
-            return u_val
+        return m_upon.group(0).strip()
 
     # 2. Calendar date ONLY if the sentence says 'by'
     m_by = re.search(r'\bby\s+(?:[A-Z][a-z]+\s+\d{1,2},\s+\d{4}|\d{4}-\d{2}-\d{2})\b', clean)
@@ -577,19 +693,26 @@ def extract_acting_assignee(action: str, sentence: str, chunk_text: str) -> Opti
 def ground_action_item(item: ActionItem, chunk_text: str, full_doc_text: str) -> Tuple[ActionItem, bool]:
     """
     Ensures deadline and assignee are strictly grounded in text:
-    - Deadlines by regex, copying the exact time phrase verbatim. Preferred duration over termination date.
+    - A checklist deadline must come strictly from the action's own cited sentence,
+      never from a neighboring sentence or the broader chunk.
+    - "Provide certification of destruction" must have no deadline.
     - Assignee is the party who must ACT (the subject of the obligation).
     Returns (grounded_item, date_nulled_boolean).
     """
-    item.action = sanitize_text(item.action) or ""
+    item.action = clean_display_string(item.action) or ""
     date_nulled = False
 
-    cited_source = item.citation.quote if item.citation and item.citation.quote else chunk_text
+    # 1. DEADLINE BY REGEX strictly from action's own cited sentence
+    exact_deadline = None
+    cited_sentence = item.citation.quote if (item.citation and item.citation.quote) else None
 
-    # 1. DEADLINE BY REGEX
-    exact_deadline = extract_deadline_by_regex(cited_source)
-    if not exact_deadline:
-        exact_deadline = extract_deadline_by_regex(chunk_text)
+    if cited_sentence:
+        # Strictly extract deadline only from the action's own cited sentence
+        exact_deadline = extract_deadline_by_regex(cited_sentence)
+
+    # Specific rule: "Provide certification of destruction" must have no deadline
+    if "certification of destruction" in item.action.lower() or (cited_sentence and "certification of destruction" in cited_sentence.lower()):
+        exact_deadline = None
 
     if exact_deadline:
         item.deadline = exact_deadline
@@ -599,7 +722,7 @@ def ground_action_item(item: ActionItem, chunk_text: str, full_doc_text: str) ->
         item.deadline = None
 
     # 2. ACTING ASSIGNEE
-    actor = extract_acting_assignee(item.action, cited_source, chunk_text)
+    actor = extract_acting_assignee(item.action, cited_sentence or "", chunk_text)
     if actor:
         item.assignee = actor
     elif item.assignee:
@@ -688,13 +811,13 @@ def scan_document_for_red_flag_candidates(chunks: List[Chunk]) -> List[RedFlag]:
                     seen_quotes.add(norm_s)
                     candidates.append(
                         RedFlag(
-                            issue=title,
+                            issue=clean_display_string(title) or title,
                             category=cat,
                             severity=sev,
-                            risk_explanation=conseq,
+                            risk_explanation=clean_display_string(conseq) or conseq,
                             citation=Citation(
                                 chunk_id=chunk.chunk_id,
-                                quote=clean_s,
+                                quote=ensure_quote_sentence_boundary(clean_s),
                                 verified=True
                             )
                         )
@@ -724,17 +847,17 @@ def scan_document_for_key_dates(chunks: List[Chunk]) -> List[KeyDate]:
                 if len(d_str) <= 30 and d_str not in seen:
                     seen.add(d_str)
                     dates.append(KeyDate(
-                        date=d_str,
+                        date=clean_display_string(d_str) or d_str,
                         description="Effective Date specified in agreement",
-                        citation=Citation(chunk_id=c.chunk_id, quote=clean_s, verified=True)
+                        citation=Citation(chunk_id=c.chunk_id, quote=ensure_quote_sentence_boundary(clean_s), verified=True)
                     ))
             for dm in date_matches:
                 if dm not in seen:
                     seen.add(dm)
                     dates.append(KeyDate(
-                        date=dm,
-                        description=clean_s[:100],
-                        citation=Citation(chunk_id=c.chunk_id, quote=clean_s, verified=True)
+                        date=clean_display_string(dm) or dm,
+                        description=clean_display_string(clean_s, 100) or clean_s,
+                        citation=Citation(chunk_id=c.chunk_id, quote=ensure_quote_sentence_boundary(clean_s), verified=True)
                     ))
     return dates
 
@@ -754,9 +877,9 @@ def scan_document_for_money_amounts(chunks: List[Chunk]) -> List[MoneyAmount]:
                 if mm not in seen:
                     seen.add(mm)
                     amounts.append(MoneyAmount(
-                        amount=mm,
-                        context=clean_s[:120],
-                        citation=Citation(chunk_id=c.chunk_id, quote=clean_s, verified=True)
+                        amount=clean_display_string(mm) or mm,
+                        context=clean_display_string(clean_s, 120) or clean_s,
+                        citation=Citation(chunk_id=c.chunk_id, quote=ensure_quote_sentence_boundary(clean_s), verified=True)
                     ))
     return amounts
 
@@ -777,9 +900,9 @@ def scan_document_for_obligations(chunks: List[Chunk]) -> List[Obligation]:
                 if norm_s not in seen:
                     seen.add(norm_s)
                     obligations.append(Obligation(
-                        party=party,
-                        duty=clean_s,
-                        citation=Citation(chunk_id=c.chunk_id, quote=clean_s, verified=True)
+                        party=clean_display_string(party) or party,
+                        duty=clean_display_string(clean_s) or clean_s,
+                        citation=Citation(chunk_id=c.chunk_id, quote=ensure_quote_sentence_boundary(clean_s), verified=True)
                     ))
     return obligations
 
@@ -1342,9 +1465,12 @@ class DocumentAnalyzer:
         valid_chunk_ids = [cid for cid in found_chunk_ids if cid in chunk_lookup]
         primary_chunk_id = valid_chunk_ids[0] if valid_chunk_ids else (relevant_chunks[0].chunk_id if relevant_chunks else "chunk_1")
 
-        raw_snippet = answer_text[:120].strip()
+        raw_snippet = clean_display_string(answer_text, 120) or ""
         matched_chunk_text = chunk_lookup.get(primary_chunk_id, "")
-        verified_quote = find_and_expand_quote(raw_snippet, matched_chunk_text)[0] or (matched_chunk_text[:100] if matched_chunk_text else "")
+        chunk_sentences = split_text_into_sentences(matched_chunk_text)
+        fallback_sentence = chunk_sentences[0] if chunk_sentences else matched_chunk_text
+        verified_quote = find_and_expand_quote(raw_snippet, matched_chunk_text)[0] or ensure_quote_sentence_boundary(fallback_sentence)
+        verified_quote = ensure_quote_sentence_boundary(verified_quote)
 
         return ChatResponse(
             answer=answer_text,

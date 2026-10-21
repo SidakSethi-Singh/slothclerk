@@ -39,7 +39,10 @@ from app.services.analyzer import (
     extract_acting_assignee,
     enforce_title_quote_alignment,
     is_heading_quote,
-    sanitize_text
+    sanitize_text,
+    clean_display_string,
+    ensure_quote_sentence_boundary,
+    deduplicate_red_flags
 )
 
 
@@ -56,14 +59,14 @@ def run_deterministic_offline_analysis(doc_id: str, filename: str, chunks: List[
     # Extract clean summary
     first_text = first_chunk.text if first_chunk else ""
     first_sents = split_text_into_sentences(first_text)
-    summary_sentence = first_sents[0] if first_sents else (first_text[:120] if first_text else f"Analysis of {filename}")
+    summary_sentence = ensure_quote_sentence_boundary(first_sents[0]) if first_sents else (clean_display_string(first_text, 120) or f"Analysis of {filename}")
     summary = f"Analysis of {filename}: {summary_sentence}"
     # Preserve qualifiers in summary
     for c in chunks:
         if "unconditional" in c.text.lower() or "without refund" in c.text.lower():
             for s in split_text_into_sentences(c.text):
                 if "unconditional" in s.lower() or "without refund" in s.lower():
-                    summary += f" Crucially, the agreement contains strict terms: {s.strip()}"
+                    summary += f" Crucially, the agreement contains strict terms: {ensure_quote_sentence_boundary(s.strip())}"
                     break
             break
 
@@ -94,17 +97,17 @@ def run_deterministic_offline_analysis(doc_id: str, filename: str, chunks: List[
                 if len(d_str) <= 30 and d_str not in seen_dates:
                     seen_dates.add(d_str)
                     key_dates.append(KeyDate(
-                        date=d_str,
+                        date=clean_display_string(d_str) or d_str,
                         description="Effective Date specified in agreement",
-                        citation=Citation(chunk_id=c.chunk_id, quote=clean_s, verified=True)
+                        citation=Citation(chunk_id=c.chunk_id, quote=ensure_quote_sentence_boundary(clean_s), verified=True)
                     ))
             for dm in date_matches:
                 if dm not in seen_dates:
                     seen_dates.add(dm)
                     key_dates.append(KeyDate(
-                        date=dm,
-                        description=clean_s[:100],
-                        citation=Citation(chunk_id=c.chunk_id, quote=clean_s, verified=True)
+                        date=clean_display_string(dm) or dm,
+                        description=clean_display_string(clean_s, 100) or clean_s,
+                        citation=Citation(chunk_id=c.chunk_id, quote=ensure_quote_sentence_boundary(clean_s), verified=True)
                     ))
 
             # 2. Money Amounts
@@ -113,9 +116,9 @@ def run_deterministic_offline_analysis(doc_id: str, filename: str, chunks: List[
                 if mm not in seen_money:
                     seen_money.add(mm)
                     money_amounts.append(MoneyAmount(
-                        amount=mm,
-                        context=clean_s[:120],
-                        citation=Citation(chunk_id=c.chunk_id, quote=clean_s, verified=True)
+                        amount=clean_display_string(mm) or mm,
+                        context=clean_display_string(clean_s, 120) or clean_s,
+                        citation=Citation(chunk_id=c.chunk_id, quote=ensure_quote_sentence_boundary(clean_s), verified=True)
                     ))
 
             # 3. Obligations & Actions
@@ -124,9 +127,9 @@ def run_deterministic_offline_analysis(doc_id: str, filename: str, chunks: List[
                 if clean_s not in seen_obligations:
                     seen_obligations.add(clean_s)
                     obligations.append(Obligation(
-                        party=party,
-                        duty=clean_s,
-                        citation=Citation(chunk_id=c.chunk_id, quote=clean_s, verified=True)
+                        party=clean_display_string(party) or party,
+                        duty=clean_display_string(clean_s) or clean_s,
+                        citation=Citation(chunk_id=c.chunk_id, quote=ensure_quote_sentence_boundary(clean_s), verified=True)
                     ))
 
                 # If affirmative action (excluding penalties/consequences)
@@ -140,11 +143,13 @@ def run_deterministic_offline_analysis(doc_id: str, filename: str, chunks: List[
                                 if act_title.startswith(prefix):
                                     act_title = act_title[len(prefix):]
                                     break
+                            if "certification of destruction" in act_title.lower() or "certification of destruction" in clean_s.lower():
+                                dl = None
                             action_checklist.append(ActionItem(
-                                action=act_title[:80].strip(),
+                                action=clean_display_string(act_title, 80) or act_title,
                                 deadline=dl,
                                 assignee=party,
-                                citation=Citation(chunk_id=c.chunk_id, quote=clean_s, verified=True)
+                                citation=Citation(chunk_id=c.chunk_id, quote=ensure_quote_sentence_boundary(clean_s), verified=True)
                             ))
 
     # 4. Red Flags from deterministic scanner
@@ -154,12 +159,17 @@ def run_deterministic_offline_analysis(doc_id: str, filename: str, chunks: List[
     for sc in scanned_candidates:
         sc = enforce_title_quote_alignment(sc)
         sc.issue = re.sub(r'^\s*\[?(?:high|medium|low|critical|severity)\]?[:\s\-]*', '', sc.issue, flags=re.IGNORECASE).strip()
+        sc.issue = clean_display_string(sc.issue) or sc.issue
+        sc.risk_explanation = clean_display_string(sc.risk_explanation) or sc.risk_explanation
+        sc.citation.quote = ensure_quote_sentence_boundary(sc.citation.quote)
         norm_q = sc.citation.quote.strip().lower()
         if norm_q not in seen_rf:
             seen_rf.add(norm_q)
             red_flags.append(sc)
-        if len(red_flags) >= 6:
-            break
+
+    red_flags, _ = deduplicate_red_flags(red_flags)
+    if len(red_flags) > 6:
+        red_flags = red_flags[:6]
 
     if len(action_checklist) > 6:
         action_checklist = action_checklist[:6]
