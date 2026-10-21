@@ -1,0 +1,26 @@
+# Virtual Environment
+venv/
+.venv/
+env/
+
+# Data and Storage
+chroma_db/
+uploads/
+
+# Environment and Secrets
+.env
+*.env.local
+
+# Python Cache & Artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.coverage
+htmlcov/
+
+# IDE & OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

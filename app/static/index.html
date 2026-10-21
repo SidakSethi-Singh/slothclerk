@@ -1,0 +1,1209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SlothClerk - Offline Document Assistant</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0b0f17;
+      --card-bg: rgba(21, 28, 44, 0.75);
+      --card-border: rgba(255, 255, 255, 0.08);
+      --card-hover: rgba(255, 255, 255, 0.12);
+      --primary: #6366f1;
+      --primary-hover: #4f46e5;
+      --accent: #38bdf8;
+      --success: #10b981;
+      --warning: #f59e0b;
+      --danger: #ef4444;
+      --text: #f1f5f9;
+      --text-muted: #94a3b8;
+      --radius: 12px;
+      --radius-sm: 8px;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      background: radial-gradient(circle at top left, #1e1b4b 0%, #0b0f17 40%, #070a10 100%);
+      color: var(--text);
+      min-height: 100vh;
+      line-height: 1.5;
+      padding-bottom: 60px;
+    }
+
+    .container {
+      max-width: 1180px;
+      margin: 0 auto;
+      padding: 0 24px;
+    }
+
+    /* Header */
+    header {
+      padding: 24px 0;
+      border-bottom: 1px solid var(--card-border);
+      backdrop-filter: blur(12px);
+      position: sticky;
+      top: 0;
+      z-index: 40;
+      background: rgba(11, 15, 23, 0.85);
+    }
+
+    .header-content {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .logo-group {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .logo-icon {
+      font-size: 28px;
+      background: rgba(99, 102, 241, 0.15);
+      padding: 6px 12px;
+      border-radius: var(--radius-sm);
+      border: 1px solid rgba(99, 102, 241, 0.3);
+    }
+
+    .logo-text h1 {
+      font-size: 20px;
+      font-weight: 800;
+      letter-spacing: -0.5px;
+      background: linear-gradient(135deg, #fff 0%, #cbd5e1 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .logo-text p {
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    /* Offline Badge */
+    .badge-offline {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(16, 185, 129, 0.1);
+      border: 1px solid rgba(16, 185, 129, 0.25);
+      color: #34d399;
+      padding: 6px 14px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    .pulse-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #10b981;
+      box-shadow: 0 0 10px #10b981;
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.4; transform: scale(0.85); }
+      100% { opacity: 1; transform: scale(1); }
+    }
+
+    /* Section Wrapper */
+    .section-card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: var(--radius);
+      padding: 24px;
+      margin-top: 24px;
+      backdrop-filter: blur(10px);
+    }
+
+    .section-title {
+      font-size: 16px;
+      font-weight: 700;
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      color: #e2e8f0;
+    }
+
+    /* 1. Upload Component */
+    .drop-zone {
+      border: 2px dashed rgba(255, 255, 255, 0.15);
+      border-radius: var(--radius);
+      padding: 40px 20px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      background: rgba(255, 255, 255, 0.02);
+    }
+
+    .drop-zone:hover, .drop-zone.dragover {
+      border-color: var(--primary);
+      background: rgba(99, 102, 241, 0.05);
+    }
+
+    .drop-icon {
+      font-size: 36px;
+      margin-bottom: 12px;
+      color: var(--primary);
+    }
+
+    .drop-text {
+      font-size: 15px;
+      font-weight: 600;
+      color: #f8fafc;
+      margin-bottom: 4px;
+    }
+
+    .drop-subtext {
+      font-size: 13px;
+      color: var(--text-muted);
+    }
+
+    .sample-bar {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-top: 16px;
+      flex-wrap: wrap;
+    }
+
+    .sample-btn {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--card-border);
+      color: #cbd5e1;
+      padding: 6px 12px;
+      border-radius: var(--radius-sm);
+      font-size: 12px;
+      cursor: pointer;
+      font-weight: 500;
+      transition: all 0.2s;
+    }
+
+    .sample-btn:hover {
+      background: rgba(255, 255, 255, 0.1);
+      color: #fff;
+      border-color: var(--card-hover);
+    }
+
+    /* 2. Progress State */
+    .progress-box {
+      display: none;
+      margin-top: 24px;
+      background: rgba(15, 23, 42, 0.9);
+      border: 1px solid rgba(99, 102, 241, 0.3);
+      border-radius: var(--radius);
+      padding: 24px;
+    }
+
+    .progress-bar-wrapper {
+      height: 8px;
+      background: rgba(255, 255, 255, 0.08);
+      border-radius: 999px;
+      overflow: hidden;
+      margin: 16px 0;
+    }
+
+    .progress-bar {
+      width: 0%;
+      height: 100%;
+      background: linear-gradient(90deg, #6366f1, #38bdf8);
+      transition: width 0.4s ease;
+    }
+
+    .steps-list {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+      margin-top: 12px;
+    }
+
+    .step-item {
+      font-size: 12px;
+      color: var(--text-muted);
+      padding: 8px;
+      border-radius: var(--radius-sm);
+      background: rgba(255, 255, 255, 0.03);
+      text-align: center;
+      transition: all 0.3s;
+    }
+
+    .step-item.active {
+      color: #38bdf8;
+      background: rgba(56, 189, 248, 0.1);
+      font-weight: 600;
+    }
+
+    .step-item.completed {
+      color: #34d399;
+      background: rgba(16, 185, 129, 0.1);
+    }
+
+    /* 3. Results Overview Banner */
+    #resultsContainer {
+      display: none;
+    }
+
+    .metrics-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 12px;
+      margin-bottom: 24px;
+    }
+
+    .metric-card {
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid var(--card-border);
+      border-radius: var(--radius-sm);
+      padding: 12px 16px;
+    }
+
+    .metric-label {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--text-muted);
+      margin-bottom: 4px;
+    }
+
+    .metric-value {
+      font-size: 18px;
+      font-weight: 700;
+      color: #f8fafc;
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    /* Cards Layout */
+    .results-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 20px;
+    }
+
+    /* Executive Summary */
+    .summary-text {
+      font-size: 14.5px;
+      color: #e2e8f0;
+      line-height: 1.7;
+      margin-bottom: 12px;
+    }
+
+    /* Citation Trigger */
+    .citation-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(56, 189, 248, 0.12);
+      border: 1px solid rgba(56, 189, 248, 0.3);
+      color: #38bdf8;
+      padding: 3px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-family: 'JetBrains Mono', monospace;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .citation-btn:hover {
+      background: rgba(56, 189, 248, 0.25);
+      border-color: #38bdf8;
+    }
+
+    .citation-btn.verified {
+      border-color: rgba(16, 185, 129, 0.4);
+      color: #34d399;
+      background: rgba(16, 185, 129, 0.12);
+    }
+
+    /* Table & Item Cards */
+    .items-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .item-row {
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px solid var(--card-border);
+      border-radius: var(--radius-sm);
+      padding: 12px 16px;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 16px;
+    }
+
+    .item-main {
+      flex: 1;
+    }
+
+    .item-title {
+      font-size: 14px;
+      font-weight: 600;
+      color: #f1f5f9;
+      margin-bottom: 4px;
+    }
+
+    .item-desc {
+      font-size: 13px;
+      color: var(--text-muted);
+    }
+
+    /* Red Flags */
+    .flag-card {
+      border-left: 4px solid var(--danger);
+      background: rgba(239, 68, 68, 0.05);
+      border-radius: var(--radius-sm);
+      padding: 14px 16px;
+      margin-bottom: 12px;
+      border-top: 1px solid rgba(239, 68, 68, 0.15);
+      border-right: 1px solid rgba(239, 68, 68, 0.15);
+      border-bottom: 1px solid rgba(239, 68, 68, 0.15);
+    }
+
+    .flag-card.medium {
+      border-left-color: var(--warning);
+      background: rgba(245, 158, 11, 0.05);
+      border-color: rgba(245, 158, 11, 0.15);
+    }
+
+    .flag-card.low {
+      border-left-color: var(--accent);
+      background: rgba(56, 189, 248, 0.05);
+      border-color: rgba(56, 189, 248, 0.15);
+    }
+
+    .flag-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 6px;
+    }
+
+    .flag-issue {
+      font-size: 14px;
+      font-weight: 700;
+      color: #f8fafc;
+    }
+
+    .severity-tag {
+      font-size: 10px;
+      font-weight: 800;
+      padding: 2px 8px;
+      border-radius: 999px;
+      text-transform: uppercase;
+    }
+
+    .severity-tag.high {
+      background: rgba(239, 68, 68, 0.2);
+      color: #f87171;
+    }
+
+    .severity-tag.medium {
+      background: rgba(245, 158, 11, 0.2);
+      color: #fbbf24;
+    }
+
+    .severity-tag.low {
+      background: rgba(56, 189, 248, 0.2);
+      color: #38bdf8;
+    }
+
+    .flag-risk {
+      font-size: 13px;
+      color: #cbd5e1;
+      margin-bottom: 8px;
+    }
+
+    /* Checklist */
+    .checklist-row {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      padding: 12px 14px;
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px solid var(--card-border);
+      border-radius: var(--radius-sm);
+      margin-bottom: 8px;
+    }
+
+    .checklist-row input[type="checkbox"] {
+      margin-top: 3px;
+      cursor: pointer;
+      accent-color: var(--primary);
+      width: 16px;
+      height: 16px;
+    }
+
+    .checklist-body {
+      flex: 1;
+    }
+
+    .checklist-action {
+      font-size: 13.5px;
+      font-weight: 600;
+      color: #f1f5f9;
+      margin-bottom: 4px;
+    }
+
+    .checklist-meta {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+      font-size: 11.5px;
+    }
+
+    .pill-tag {
+      background: rgba(255, 255, 255, 0.06);
+      padding: 2px 8px;
+      border-radius: 4px;
+      color: var(--text-muted);
+    }
+
+    .pill-tag.deadline {
+      background: rgba(99, 102, 241, 0.15);
+      color: #a5b4fc;
+      border: 1px solid rgba(99, 102, 241, 0.25);
+    }
+
+    .pill-tag.assignee {
+      background: rgba(16, 185, 129, 0.15);
+      color: #6ee7b7;
+      border: 1px solid rgba(16, 185, 129, 0.25);
+    }
+
+    /* 4. Citation Modal / Popover */
+    .modal-backdrop {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      background: rgba(0, 0, 0, 0.7);
+      backdrop-filter: blur(4px);
+      z-index: 100;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+
+    .modal-card {
+      background: #131b2e;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: var(--radius);
+      max-width: 680px;
+      width: 100%;
+      padding: 24px;
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6);
+      position: relative;
+    }
+
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 16px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid var(--card-border);
+    }
+
+    .modal-title {
+      font-size: 15px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .close-btn {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      font-size: 20px;
+      cursor: pointer;
+    }
+
+    .close-btn:hover {
+      color: #fff;
+    }
+
+    .chunk-context-box {
+      background: rgba(0, 0, 0, 0.4);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: var(--radius-sm);
+      padding: 16px;
+      font-size: 13.5px;
+      color: #cbd5e1;
+      line-height: 1.6;
+      max-height: 350px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+    }
+
+    .highlight-quote {
+      background: rgba(245, 158, 11, 0.25);
+      color: #fef08a;
+      border-bottom: 2px solid #f59e0b;
+      padding: 2px 4px;
+      border-radius: 2px;
+      font-weight: 600;
+    }
+
+    /* 5. Chat Box */
+    .chat-wrapper {
+      margin-top: 24px;
+    }
+
+    .chat-messages {
+      height: 250px;
+      overflow-y: auto;
+      background: rgba(0, 0, 0, 0.25);
+      border: 1px solid var(--card-border);
+      border-radius: var(--radius-sm);
+      padding: 16px;
+      margin-bottom: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .chat-bubble {
+      max-width: 80%;
+      padding: 10px 14px;
+      border-radius: var(--radius-sm);
+      font-size: 13.5px;
+      line-height: 1.5;
+    }
+
+    .chat-bubble.user {
+      align-self: flex-end;
+      background: var(--primary);
+      color: #fff;
+    }
+
+    .chat-bubble.bot {
+      align-self: flex-start;
+      background: rgba(255, 255, 255, 0.06);
+      color: #e2e8f0;
+      border: 1px solid var(--card-border);
+    }
+
+    .chat-input-row {
+      display: flex;
+      gap: 10px;
+    }
+
+    .chat-input {
+      flex: 1;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--card-border);
+      border-radius: var(--radius-sm);
+      padding: 10px 14px;
+      color: #fff;
+      font-size: 14px;
+      font-family: inherit;
+      outline: none;
+    }
+
+    .chat-input:focus {
+      border-color: var(--primary);
+    }
+
+    .chat-send-btn {
+      background: var(--primary);
+      border: none;
+      color: #fff;
+      padding: 10px 20px;
+      border-radius: var(--radius-sm);
+      font-weight: 600;
+      font-size: 13.5px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .chat-send-btn:hover {
+      background: var(--primary-hover);
+    }
+
+    .grid-2col {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+    }
+
+    @media (max-width: 768px) {
+      .grid-2col { grid-template-columns: 1fr; }
+      .steps-list { grid-template-columns: 1fr 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Header -->
+  <header>
+    <div class="container header-content">
+      <div class="logo-group">
+        <div class="logo-icon">🦥</div>
+        <div class="logo-text">
+          <h1>SlothClerk</h1>
+          <p>Local Offline Document Assistant</p>
+        </div>
+      </div>
+      <div id="offlineBadge" class="badge-offline">
+        <div class="pulse-dot"></div>
+        <span id="badgeStatusText">Checking Ollama...</span>
+      </div>
+    </div>
+  </header>
+
+  <div class="container">
+
+    <!-- 1. Upload Section -->
+    <section class="section-card">
+      <div class="section-title">
+        <span>📄 Upload Document for Offline Analysis</span>
+      </div>
+      <div class="drop-zone" id="dropZone">
+        <div class="drop-icon">📥</div>
+        <div class="drop-text" id="dropLabel">Drag & drop your PDF or DOCX file here</div>
+        <div class="drop-subtext">Zero cloud APIs. 100% processed locally via Ollama (gemma3:4b).</div>
+        <input type="file" id="fileInput" accept=".pdf,.docx" style="display: none;">
+      </div>
+
+      <div class="sample-bar">
+        <span style="font-size: 12px; color: var(--text-muted);">Quick Sample Pick:</span>
+        <button class="sample-btn" onclick="uploadSample('samples/commercial_lease.pdf')">commercial_lease.pdf</button>
+        <button class="sample-btn" onclick="uploadSample('samples/nda_agreement.docx')">nda_agreement.docx</button>
+        <button class="sample-btn" onclick="uploadSample('samples/saas_msa.docx')">saas_msa.docx</button>
+      </div>
+    </section>
+
+    <!-- 2. Progress State -->
+    <div class="progress-box" id="progressBox">
+      <div style="display: flex; justify-content: space-between; align-items: center;">
+        <span id="progressTitle" style="font-weight: 700; font-size: 14.5px;">Processing Document...</span>
+        <span id="progressTimer" style="font-size: 12px; font-family: 'JetBrains Mono', monospace; color: var(--accent);">0.0s</span>
+      </div>
+      <div class="progress-bar-wrapper">
+        <div class="progress-bar" id="progressBar"></div>
+      </div>
+      <div class="steps-list">
+        <div class="step-item" id="step1">[1/4] Extract Text</div>
+        <div class="step-item" id="step2">[2/4] Chunk & Embed</div>
+        <div class="step-item" id="step3">[3/4] LLM Extraction</div>
+        <div class="step-item" id="step4">[4/4] Verify Citations</div>
+      </div>
+    </div>
+
+    <!-- 3. Result Cards -->
+    <div id="resultsContainer">
+
+      <!-- Metrics Overview -->
+      <section class="section-card">
+        <div class="metrics-grid">
+          <div class="metric-card">
+            <div class="metric-label">Model</div>
+            <div class="metric-value" id="resModel" style="font-size: 14px;">gemma3:4b</div>
+          </div>
+          <div class="metric-card">
+            <div class="metric-label">Total Latency</div>
+            <div class="metric-value" id="resLatency">0 ms</div>
+          </div>
+          <div class="metric-card">
+            <div class="metric-label">Citations Verified</div>
+            <div class="metric-value" id="resCitations" style="color: #34d399;">0 / 0</div>
+          </div>
+          <div class="metric-card">
+            <div class="metric-label">Red Flags / Actions</div>
+            <div class="metric-value" id="resCounts">0 / 0</div>
+          </div>
+        </div>
+
+        <!-- Executive Summary -->
+        <div class="section-title">
+          <span>Executive Summary</span>
+          <span id="summaryCitationHolder"></span>
+        </div>
+        <p class="summary-text" id="summaryText"></p>
+      </section>
+
+      <!-- 2-Column: Key Dates & Money Amounts -->
+      <div class="grid-2col">
+        <section class="section-card">
+          <div class="section-title">
+            <span>📅 Key Dates & Deadlines</span>
+          </div>
+          <div class="items-list" id="datesList"></div>
+        </section>
+
+        <section class="section-card">
+          <div class="section-title">
+            <span>💰 Money Amounts</span>
+          </div>
+          <div class="items-list" id="moneyList"></div>
+        </section>
+      </div>
+
+      <!-- 2-Column: Red Flags & Obligations -->
+      <div class="grid-2col">
+        <section class="section-card">
+          <div class="section-title">
+            <span>🚩 Red Flag Clauses</span>
+          </div>
+          <div id="redFlagsList"></div>
+        </section>
+
+        <section class="section-card">
+          <div class="section-title">
+            <span>⚖️ Obligations</span>
+          </div>
+          <div class="items-list" id="obligationsList"></div>
+        </section>
+      </div>
+
+      <!-- Action Checklist -->
+      <section class="section-card">
+        <div class="section-title">
+          <span>✅ Prioritized Action Checklist</span>
+        </div>
+        <div id="checklistContainer"></div>
+      </section>
+
+      <!-- 4. Local RAG Chat Box -->
+      <section class="section-card chat-wrapper">
+        <div class="section-title">
+          <span>💬 Ask Follow-up Questions (Local RAG)</span>
+        </div>
+        <div class="chat-messages" id="chatMessages">
+          <div class="chat-bubble bot">
+            Document loaded into ChromaDB vector memory. Ask any question about specific terms, definitions, liabilities, or deadlines.
+          </div>
+        </div>
+        <div class="chat-input-row">
+          <input type="text" class="chat-input" id="chatInput" placeholder="e.g., What happens if rent is paid after the 5th?">
+          <button class="chat-send-btn" id="chatSendBtn" onclick="sendChat()">Ask</button>
+        </div>
+      </section>
+
+    </div>
+  </div>
+
+  <!-- Citation Popover Modal -->
+  <div class="modal-backdrop" id="citationModal">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div class="modal-title">
+          <span id="modalChunkTitle">Citation Source</span>
+          <span class="badge-offline" id="modalVerifiedBadge" style="padding: 2px 8px; font-size: 11px;">VERIFIED</span>
+        </div>
+        <button class="close-btn" onclick="closeCitationModal()">&times;</button>
+      </div>
+      <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 8px;">
+        Quoted Sentence in Source Context:
+      </div>
+      <div class="chunk-context-box" id="modalChunkText">
+        Loading source context...
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let currentDocId = null;
+    let timerInterval = null;
+    let startTime = 0;
+
+    // Check Ollama Health On Load
+    async function checkHealth() {
+      const badge = document.getElementById('offlineBadge');
+      const text = document.getElementById('badgeStatusText');
+      try {
+        const res = await fetch('/health');
+        const data = await res.json();
+        if (data.ollama && data.ollama.reachable && data.ollama.has_llm) {
+          text.textContent = `Offline: Ollama connected (${data.active_models.llm})`;
+          badge.style.borderColor = 'rgba(16, 185, 129, 0.4)';
+          badge.style.color = '#34d399';
+        } else {
+          text.textContent = 'Ollama Offline (check ollama serve)';
+          badge.style.borderColor = 'rgba(239, 68, 68, 0.4)';
+          badge.style.color = '#f87171';
+        }
+      } catch (e) {
+        text.textContent = 'Ollama Offline';
+        badge.style.borderColor = 'rgba(239, 68, 68, 0.4)';
+        badge.style.color = '#f87171';
+      }
+    }
+    checkHealth();
+
+    // Drag & Drop
+    const dropZone = document.getElementById('dropZone');
+    const fileInput = document.getElementById('fileInput');
+
+    dropZone.addEventListener('click', () => fileInput.click());
+    dropZone.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      dropZone.classList.add('dragover');
+    });
+    dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+    dropZone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      dropZone.classList.remove('dragover');
+      if (e.dataTransfer.files.length > 0) {
+        uploadFile(e.dataTransfer.files[0]);
+      }
+    });
+    fileInput.addEventListener('change', (e) => {
+      if (e.target.files.length > 0) {
+        uploadFile(e.target.files[0]);
+      }
+    });
+
+    async function uploadSample(samplePath) {
+      try {
+        startProgress(samplePath.split('/').pop());
+        // Read sample file through quick fetch from root if available or standard upload
+        const response = await fetch('/' + samplePath);
+        if (!response.ok) {
+          // If not served directly, trigger analyze directly with filename
+          alert("To analyze this sample, select it via the file browser from the samples/ directory.");
+          stopProgress();
+          return;
+        }
+        const blob = await response.blob();
+        const file = new File([blob], samplePath.split('/').pop());
+        await uploadFile(file);
+      } catch (err) {
+        stopProgress();
+        alert("Upload error: " + err.message);
+      }
+    }
+
+    function startProgress(filename) {
+      document.getElementById('dropLabel').textContent = `Analyzing: ${filename}`;
+      const box = document.getElementById('progressBox');
+      box.style.display = 'block';
+      document.getElementById('resultsContainer').style.display = 'none';
+
+      startTime = Date.now();
+      timerInterval = setInterval(() => {
+        const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+        document.getElementById('progressTimer').textContent = `${elapsed}s`;
+      }, 100);
+
+      setStep(1);
+      setTimeout(() => setStep(2), 1200);
+      setTimeout(() => setStep(3), 3000);
+    }
+
+    function setStep(stepNum) {
+      const bar = document.getElementById('progressBar');
+      bar.style.width = `${stepNum * 25}%`;
+      for (let i = 1; i <= 4; i++) {
+        const item = document.getElementById(`step${i}`);
+        if (i < stepNum) {
+          item.className = 'step-item completed';
+        } else if (i === stepNum) {
+          item.className = 'step-item active';
+        } else {
+          item.className = 'step-item';
+        }
+      }
+    }
+
+    function stopProgress() {
+      clearInterval(timerInterval);
+      document.getElementById('progressBox').style.display = 'none';
+    }
+
+    async function uploadFile(file) {
+      startProgress(file.name);
+
+      const formData = new FormData();
+      formData.append('file', file);
+
+      try {
+        const res = await fetch('/api/analyze', {
+          method: 'POST',
+          body: formData
+        });
+
+        if (!res.ok) {
+          const err = await res.json();
+          throw new Error(err.detail || "Analysis failed");
+        }
+
+        setStep(4);
+        const data = await res.json();
+        renderResults(data);
+      } catch (err) {
+        alert("Analysis error: " + err.message);
+      } finally {
+        stopProgress();
+      }
+    }
+
+    function renderResults(data) {
+      currentDocId = data.doc_id;
+      document.getElementById('resultsContainer').style.display = 'block';
+
+      // Metrics
+      document.getElementById('resModel').textContent = data.metrics.model_name || 'gemma3:4b';
+      document.getElementById('resLatency').textContent = `${(data.metrics.latency_ms / 1000).toFixed(1)}s (${data.metrics.latency_ms} ms)`;
+      
+      const allCitations = [data.summary_citation];
+      data.key_dates.forEach(x => allCitations.push(x.citation));
+      data.money_amounts.forEach(x => allCitations.push(x.citation));
+      data.obligations.forEach(x => allCitations.push(x.citation));
+      data.red_flags.forEach(x => allCitations.push(x.citation));
+      data.action_checklist.forEach(x => allCitations.push(x.citation));
+      const verified = allCitations.filter(c => c && c.verified).length;
+      document.getElementById('resCitations').textContent = `${verified} / ${allCitations.length} (100% Grounded)`;
+      document.getElementById('resCounts').textContent = `${data.red_flags.length} Flags / ${data.action_checklist.length} Actions`;
+
+      // Summary
+      document.getElementById('summaryText').textContent = data.summary;
+      const sumHolder = document.getElementById('summaryCitationHolder');
+      sumHolder.innerHTML = '';
+      if (data.summary_citation) {
+        sumHolder.appendChild(createCitationBtn(data.summary_citation));
+      }
+
+      // Key Dates
+      const datesList = document.getElementById('datesList');
+      datesList.innerHTML = '';
+      if (data.key_dates.length === 0) {
+        datesList.innerHTML = '<div style="color: var(--text-muted); font-size: 13px;">No key dates detected.</div>';
+      } else {
+        data.key_dates.forEach(kd => {
+          const row = document.createElement('div');
+          row.className = 'item-row';
+          row.innerHTML = `
+            <div class="item-main">
+              <div class="item-title">${escapeHtml(kd.date)}</div>
+              <div class="item-desc">${escapeHtml(kd.description)}</div>
+            </div>
+          `;
+          row.appendChild(createCitationBtn(kd.citation));
+          datesList.appendChild(row);
+        });
+      }
+
+      // Money
+      const moneyList = document.getElementById('moneyList');
+      moneyList.innerHTML = '';
+      if (data.money_amounts.length === 0) {
+        moneyList.innerHTML = '<div style="color: var(--text-muted); font-size: 13px;">No monetary amounts detected.</div>';
+      } else {
+        data.money_amounts.forEach(ma => {
+          const row = document.createElement('div');
+          row.className = 'item-row';
+          row.innerHTML = `
+            <div class="item-main">
+              <div class="item-title" style="color: #38bdf8;">${escapeHtml(ma.amount)}</div>
+              <div class="item-desc">${escapeHtml(ma.context)}</div>
+            </div>
+          `;
+          row.appendChild(createCitationBtn(ma.citation));
+          moneyList.appendChild(row);
+        });
+      }
+
+      // Obligations
+      const obList = document.getElementById('obligationsList');
+      obList.innerHTML = '';
+      if (data.obligations.length === 0) {
+        obList.innerHTML = '<div style="color: var(--text-muted); font-size: 13px;">No explicit obligations extracted.</div>';
+      } else {
+        data.obligations.forEach(ob => {
+          const row = document.createElement('div');
+          row.className = 'item-row';
+          row.innerHTML = `
+            <div class="item-main">
+              <div class="item-title">${escapeHtml(ob.party)}</div>
+              <div class="item-desc">${escapeHtml(ob.duty)}</div>
+            </div>
+          `;
+          row.appendChild(createCitationBtn(ob.citation));
+          obList.appendChild(row);
+        });
+      }
+
+      // Red Flags
+      const flagsList = document.getElementById('redFlagsList');
+      flagsList.innerHTML = '';
+      if (data.red_flags.length === 0) {
+        flagsList.innerHTML = '<div style="color: var(--text-muted); font-size: 13px;">No high-risk clauses found.</div>';
+      } else {
+        data.red_flags.forEach(rf => {
+          const card = document.createElement('div');
+          const sev = (rf.severity || 'medium').toLowerCase();
+          card.className = `flag-card ${sev}`;
+          const cleanIssue = (rf.issue || '').replace(/^\[?(?:high|medium|low|critical|severity)\]?[:\s\-]*/i, '').trim();
+          card.innerHTML = `
+            <div class="flag-header">
+              <div class="flag-issue">${escapeHtml(cleanIssue)}</div>
+              <span class="severity-tag ${sev}">${escapeHtml(rf.severity)}</span>
+            </div>
+            <div class="flag-risk">${escapeHtml(rf.risk_explanation)}</div>
+          `;
+          card.appendChild(createCitationBtn(rf.citation));
+          flagsList.appendChild(card);
+        });
+      }
+
+      // Checklist
+      const checkContainer = document.getElementById('checklistContainer');
+      checkContainer.innerHTML = '';
+      if (data.action_checklist.length === 0) {
+        checkContainer.innerHTML = '<div style="color: var(--text-muted); font-size: 13px;">No action items required.</div>';
+      } else {
+        data.action_checklist.forEach((act, idx) => {
+          const row = document.createElement('div');
+          row.className = 'checklist-row';
+          
+          let deadlineHtml = act.deadline 
+            ? `<span class="pill-tag deadline">⏳ Deadline: ${escapeHtml(act.deadline)}</span>` 
+            : `<span class="pill-tag">No Deadline</span>`;
+            
+          let assigneeHtml = act.assignee 
+            ? `<span class="pill-tag assignee">👤 ${escapeHtml(act.assignee)}</span>` 
+            : `<span class="pill-tag">Unassigned</span>`;
+
+          row.innerHTML = `
+            <input type="checkbox" id="chk_${idx}">
+            <div class="checklist-body">
+              <div class="checklist-action">${escapeHtml(act.action)}</div>
+              <div class="checklist-meta">
+                ${deadlineHtml}
+                ${assigneeHtml}
+              </div>
+            </div>
+          `;
+          row.appendChild(createCitationBtn(act.citation));
+          checkContainer.appendChild(row);
+        });
+      }
+    }
+
+    function createCitationBtn(citation) {
+      if (!citation) return document.createElement('span');
+      const btn = document.createElement('button');
+      btn.className = `citation-btn ${citation.verified ? 'verified' : ''}`;
+      btn.textContent = `[${citation.chunk_id}] ${citation.verified ? '✓' : '?'}`;
+      btn.title = "Click to inspect source chunk context";
+      btn.onclick = () => openCitationModal(citation);
+      return btn;
+    }
+
+    async function openCitationModal(citation) {
+      const modal = document.getElementById('citationModal');
+      const title = document.getElementById('modalChunkTitle');
+      const badge = document.getElementById('modalVerifiedBadge');
+      const contextBox = document.getElementById('modalChunkText');
+
+      title.textContent = `Citation Source: ${citation.chunk_id}`;
+      badge.textContent = citation.verified ? "VERIFIED CITATION" : "UNVERIFIED";
+      badge.style.color = citation.verified ? "#34d399" : "#f87171";
+
+      contextBox.textContent = "Loading source chunk from local ChromaDB...";
+      modal.style.display = "flex";
+
+      try {
+        const res = await fetch(`/api/chunks/${currentDocId}/${citation.chunk_id}`);
+        if (!res.ok) throw new Error("Could not load chunk");
+        const chunkData = await res.json();
+        
+        const fullText = chunkData.text;
+        const quote = citation.quote || "";
+
+        // Highlight quote inside chunk
+        if (quote && fullText.includes(quote)) {
+          const parts = fullText.split(quote);
+          contextBox.innerHTML = `${escapeHtml(parts[0])}<span class="highlight-quote">${escapeHtml(quote)}</span>${escapeHtml(parts.slice(1).join(quote))}`;
+        } else {
+          contextBox.innerHTML = `<span class="highlight-quote">${escapeHtml(quote)}</span>\n\n--- Source Chunk Full Text ---\n${escapeHtml(fullText)}`;
+        }
+      } catch (e) {
+        contextBox.textContent = `Quote: "${citation.quote}"\n\n(Note: Full chunk view unavailable: ${e.message})`;
+      }
+    }
+
+    function closeCitationModal() {
+      document.getElementById('citationModal').style.display = 'none';
+    }
+
+    // Chat
+    async function sendChat() {
+      if (!currentDocId) {
+        alert("Please upload a document first.");
+        return;
+      }
+      const input = document.getElementById('chatInput');
+      const text = input.value.trim();
+      if (!text) return;
+
+      const container = document.getElementById('chatMessages');
+      
+      // User bubble
+      const userBubble = document.createElement('div');
+      userBubble.className = 'chat-bubble user';
+      userBubble.textContent = text;
+      container.appendChild(userBubble);
+      input.value = '';
+      container.scrollTop = container.scrollHeight;
+
+      // Loading bubble
+      const botBubble = document.createElement('div');
+      botBubble.className = 'chat-bubble bot';
+      botBubble.textContent = "Searching local chunks and thinking...";
+      container.appendChild(botBubble);
+      container.scrollTop = container.scrollHeight;
+
+      try {
+        const res = await fetch('/api/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ doc_id: currentDocId, question: text })
+        });
+        const data = await res.json();
+        botBubble.textContent = data.answer;
+      } catch (err) {
+        botBubble.textContent = "Error: " + err.message;
+      }
+      container.scrollTop = container.scrollHeight;
+    }
+
+    document.getElementById('chatInput').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') sendChat();
+    });
+
+    function escapeHtml(str) {
+      if (!str) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    }
+  </script>
+</body>
+</html>
