@@ -739,6 +739,18 @@
       background: var(--surface-white);
     }
 
+    .checklist-row.completed {
+      background: #E2E8F0;
+      opacity: 0.6;
+      border-color: #94A3B8;
+      box-shadow: none;
+    }
+
+    .checklist-row.completed .checklist-action {
+      text-decoration: line-through;
+      color: #64748B;
+    }
+
     .checklist-row input[type="checkbox"] {
       margin-top: 3px;
       cursor: pointer;
@@ -1171,7 +1183,7 @@
   </div>
 
   <!-- Citation Popover Modal -->
-  <div class="modal-backdrop" id="citationModal">
+  <div class="modal-backdrop" id="citationModal" onclick="if(event.target === this) closeCitationModal()">
     <div class="modal-card">
       <div class="modal-header">
         <div class="modal-title">
@@ -1489,18 +1501,29 @@
             : `<span class="pill-tag">Unassigned</span>`;
 
           row.innerHTML = `
-            <input type="checkbox" id="chk_${idx}">
-            <div class="checklist-body">
+            <input type="checkbox" id="chk_${idx}" onchange="toggleChecklist(this)">
+            <label for="chk_${idx}" class="checklist-body" style="cursor: pointer; display: block;">
               <div class="checklist-action">${escapeHtml(act.action)}</div>
               <div class="checklist-meta">
                 ${deadlineHtml}
                 ${assigneeHtml}
               </div>
-            </div>
+            </label>
           `;
           row.appendChild(createCitationBtn(act.citation));
           checkContainer.appendChild(row);
         });
+      }
+    }
+
+    function toggleChecklist(el) {
+      const row = el.closest('.checklist-row');
+      if (row) {
+        if (el.checked) {
+          row.classList.add('completed');
+        } else {
+          row.classList.remove('completed');
+        }
       }
     }
 
@@ -1510,7 +1533,10 @@
       btn.className = `citation-btn ${citation.verified ? 'verified' : ''}`;
       btn.textContent = `[${citation.chunk_id}] ${citation.verified ? '✓' : '?'}`;
       btn.title = "Click to inspect source chunk context";
-      btn.onclick = () => openCitationModal(citation);
+      btn.onclick = (e) => {
+        if (e) e.stopPropagation();
+        openCitationModal(citation);
+      };
       return btn;
     }
 
@@ -1550,6 +1576,10 @@
     function closeCitationModal() {
       document.getElementById('citationModal').style.display = 'none';
     }
+
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') closeCitationModal();
+    });
 
     // Chat
     async function sendChat() {
