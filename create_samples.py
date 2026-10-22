@@ -74,6 +74,49 @@ def create_samples():
     doc_saas.save(str(samples_dir / "saas_msa.docx"))
 
     # -------------------------------------------------------------
+    # 3. Executive Employment and Proprietary Information Agreement (DOCX)
+    # -------------------------------------------------------------
+    doc_emp = docx.Document()
+    doc_emp.add_heading("EXECUTIVE EMPLOYMENT AND PROPRIETARY INFORMATION AGREEMENT", 0)
+    doc_emp.add_paragraph("Effective Date: March 1, 2026")
+    doc_emp.add_paragraph(
+        "This Executive Employment Agreement ('Agreement') is entered into by and between "
+        "Vertex BioTech Systems Inc. ('Company') and Dr. Sarah Lin ('Employee')."
+    )
+    doc_emp.add_heading("1. Position, Duties and Base Compensation", level=1)
+    doc_emp.add_paragraph(
+        "Employee shall serve as Vice President of Research. Company shall pay Employee an annual base salary "
+        "of $175,000 USD, payable bi-weekly in accordance with standard payroll practices. "
+        "Employee is eligible for a target annual discretionary performance bonus of $35,000 USD."
+    )
+    doc_emp.add_heading("2. Signing Bonus and Repayment Clawback", level=1)
+    doc_emp.add_paragraph(
+        "Company shall pay Employee a one-time signing bonus of $30,000 USD upon the first regular payroll cycle. "
+        "In the event Employee resigns or is terminated for Cause within twelve (12) months of Commencement Date, "
+        "Employee shall immediately repay 100% of the $30,000 USD signing bonus to Company within thirty (30) days."
+    )
+    doc_emp.add_heading("3. Proprietary Information and Inventions Assignment", level=1)
+    doc_emp.add_paragraph(
+        "Employee hereby irrevocably assigns to Company all right, title, and interest in and to all inventions, "
+        "developments, designs, and computer code conceived, whether or not during working hours. "
+        "Employee must deliver written list of Prior Inventions to Company upon signing."
+    )
+    doc_emp.add_heading("4. Restrictive Covenants and Non-Compete", level=1)
+    doc_emp.add_paragraph(
+        "Employee agrees that for twenty-four (24) months following termination of employment for any reason, "
+        "Employee shall not directly or indirectly engage in, perform services for, or invest in any competing "
+        "business entity worldwide. Employee must return all Company laptops, access badges, and proprietary materials "
+        "within forty-eight (48) hours of termination."
+    )
+    doc_emp.add_heading("5. Dispute Resolution and Arbitration", level=1)
+    doc_emp.add_paragraph(
+        "All employment disputes must be submitted to binding individual arbitration, and Employee expressly "
+        "waives all rights to a jury trial or class action proceeding. Submit Form I-9 verification and signed "
+        "employee handbook acknowledgment within three (3) business days of Commencement Date."
+    )
+    doc_emp.save(str(samples_dir / "employment_agreement.docx"))
+
+    # -------------------------------------------------------------
     # 3. Commercial Office Sublease Agreement (PDF) - 7 Pages Long
     # -------------------------------------------------------------
     pages = [
@@ -152,9 +195,10 @@ def create_samples():
     pdf_path = samples_dir / "commercial_lease.pdf"
     _generate_multipage_pdf(str(pdf_path), pages)
 
-    print("Created 3 realistic, unlabeled sample contracts:")
+    print("Created 4 realistic, unlabeled sample contracts:")
     print(" - samples/nda_agreement.docx")
     print(" - samples/saas_msa.docx")
+    print(" - samples/employment_agreement.docx")
     print(" - samples/commercial_lease.pdf (7 pages)")
 
 

@@ -6,8 +6,9 @@ from typing import List, Optional
 from fastapi import FastAPI, File, UploadFile, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, Response
 from pydantic import BaseModel
+
 
 from app.config import settings
 from app.models import (
@@ -21,7 +22,9 @@ from app.services.chunker import create_chunks
 from app.services.vector_store import vector_store
 from app.services.analyzer import analyzer
 from app.services.ollama_client import ollama_client
+from app.services.exporter import export_markdown, export_json
 from cli import analyze_document
+
 
 app = FastAPI(
     title="SlothClerk",
@@ -137,6 +140,31 @@ async def analyze_document_endpoint(file: UploadFile = File(...)):
             status_code=500,
             detail=f"Analysis failed: {str(e)}"
         )
+
+
+@app.post("/api/export/markdown")
+def export_markdown_endpoint(analysis: DocumentAnalysisResponse):
+    """Generates and returns a downloadable Markdown audit report."""
+    md_content = export_markdown(analysis)
+    safe_filename = Path(analysis.filename).stem or "contract"
+    return Response(
+        content=md_content,
+        media_type="text/markdown",
+        headers={"Content-Disposition": f'attachment; filename="{safe_filename}_audit_report.md"'}
+    )
+
+
+@app.post("/api/export/json")
+def export_json_endpoint(analysis: DocumentAnalysisResponse):
+    """Generates and returns a downloadable structured JSON report."""
+    json_content = export_json(analysis, indent=2)
+    safe_filename = Path(analysis.filename).stem or "contract"
+    return Response(
+        content=json_content,
+        media_type="application/json",
+        headers={"Content-Disposition": f'attachment; filename="{safe_filename}_audit_report.json"'}
+    )
+
 
 
 class ChatPayload(BaseModel):

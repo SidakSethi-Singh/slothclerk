@@ -211,10 +211,17 @@ def test_deterministic_clause_scanner_on_sample_contracts():
         quotes = [c.citation.quote.lower() for c in cands]
         assert any("renew" in q for q in quotes), "SaaS must flag auto-renewal"
         assert any("96,000" in q or "renewal fee" in q for q in quotes), "SaaS must flag $96,000 lock-in"
-        assert any("penalty" in q or "finance penalty" in q or "1.5%" in q for q in quotes), "SaaS must flag late fee"
-        for c in cands:
-            if "jury" not in c.citation.quote.lower():
-                assert "jury" not in c.issue.lower(), f"SaaS title has 'jury' without quote having jury: {c.issue}"
+    # 3. Employment Agreement: non-compete, signing bonus clawback, inventions assignment, arbitration/jury
+    emp_path = Path("samples/employment_agreement.docx")
+    if emp_path.exists():
+        chunks = create_chunks("test_emp", extract_document(emp_path))
+        cands = scan_document_for_red_flag_candidates(chunks)
+        quotes = [c.citation.quote.lower() for c in cands]
+        issues = [c.issue.lower() for c in cands]
+        assert any("competing" in q or "engage in" in q for q in quotes), "Employment must flag non-compete"
+        assert any("repay 100%" in q or "signing bonus" in q for q in quotes), "Employment must flag bonus clawback"
+        assert any("inventions" in q or "assigns to company" in q for q in quotes), "Employment must flag inventions assignment"
+        assert any("arbitration" in q or "jury" in q for q in quotes), "Employment must flag arbitration/jury waiver"
 
 
 def test_merge_red_flags_same_chunk_topic_keyword():

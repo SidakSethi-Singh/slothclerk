@@ -258,8 +258,10 @@ TOPIC_KEYWORDS = {
     "arbitration", "attorney", "repossession", "repossess", "renewal", "renew",
     "damages", "penalty", "surcharge", "indemnif", "indemnity", "waiver", "waive",
     "jury", "interest", "termination", "terminate", "forfeiture", "refund",
-    "discretion", "liability", "lien", "audit"
+    "discretion", "liability", "lien", "audit", "compete", "competition",
+    "solicit", "solicitation", "clawback", "repay", "inventions", "assignment"
 }
+
 
 
 def extract_red_flag_topics(rf: RedFlag) -> set:
@@ -587,8 +589,13 @@ DEFINED_PARTIES = [
     "Customer",
     "Provider",
     "Landlord",
-    "Tenant"
+    "Tenant",
+    "Company",
+    "Employee",
+    "Employer",
+    "Consultant"
 ]
+
 
 def extract_deadline_by_regex(cited_text: str) -> Optional[str]:
     """
@@ -663,10 +670,14 @@ def extract_acting_assignee(action: str, sentence: str, chunk_text: str) -> Opti
         return "Provider"
     if re.search(r'\b(?:notice|payment)\s+to\s+Provider\b', text, re.IGNORECASE):
         return "Customer"
+    if re.search(r'\b(?:notice|payment)\s+to\s+Company\b', text, re.IGNORECASE):
+        return "Employee"
+    if re.search(r'\b(?:notice|payment)\s+to\s+Employee\b', text, re.IGNORECASE):
+        return "Company"
 
     # Explicit subject patterns: "Subtenant shall", "Customer shall", etc.
     m_sub = re.search(
-        r'\b(Subtenant|Sublessor|Customer|Provider|Receiving Party|Disclosing Party)\s+(?:shall|must|will|agrees to|is required to|is obligated to|may proceed)\b',
+        r'\b(Subtenant|Sublessor|Customer|Provider|Receiving Party|Disclosing Party|Employee|Employer|Company|Consultant)\s+(?:shall|must|will|agrees to|is required to|is obligated to|may proceed|hereby)\b',
         text,
         re.IGNORECASE
     )
@@ -678,6 +689,10 @@ def extract_acting_assignee(action: str, sentence: str, chunk_text: str) -> Opti
         if "provider" in raw: return "Provider"
         if "receiving" in raw: return "Receiving Party"
         if "disclosing" in raw: return "Disclosing Party"
+        if "employee" in raw: return "Employee"
+        if "company" in raw: return "Company"
+        if "employer" in raw: return "Employer"
+        if "consultant" in raw: return "Consultant"
 
     # Contextual document fallback
     if "subtenant" in sentence.lower() or "subtenant" in chunk_text.lower():
@@ -686,6 +701,11 @@ def extract_acting_assignee(action: str, sentence: str, chunk_text: str) -> Opti
         return "Receiving Party"
     if "customer" in sentence.lower() or "customer" in chunk_text.lower():
         return "Customer"
+    if "employee" in sentence.lower() or "employee" in chunk_text.lower():
+        return "Employee"
+    if "company" in sentence.lower() or "company" in chunk_text.lower():
+        return "Company"
+
 
     return None
 
@@ -790,8 +810,12 @@ def scan_document_for_red_flag_candidates(chunks: List[Chunk]) -> List[RedFlag]:
         (r'\bindemnif(?:y|ies|ied|ication)\b', "Indemnification Obligation", "indemnity", "high", "Obligates the party to cover third-party legal liabilities and losses."),
         (r'\bsole discretion\b', "Sole Discretion Decision Rights", "other", "medium", "Grants one party unilateral control over key contractual decisions."),
         (r'\barbitration\b', "Mandatory Binding Arbitration", "other", "medium", "Forecloses public court access by requiring binding private arbitration."),
-        (r'\battorney fees?\b|\battorney costs?\b', "Attorney Fees Recovery", "other", "medium", "Exposes the non-prevailing party to liability for all opposing legal fees.")
+        (r'\battorney fees?\b|\battorney costs?\b', "Attorney Fees Recovery", "other", "medium", "Exposes the non-prevailing party to liability for all opposing legal fees."),
+        (r'\b(?:not directly or indirectly engage in|competing business)\b', "Non-Compete Covenant", "restrictions", "high", "Imposes post-employment non-compete restrictions prohibiting participation in competing businesses worldwide."),
+        (r'\brepay 100% of the \$30,000\b|\brepay.*signing bonus\b|\bbonus clawback\b', "Signing Bonus Clawback", "penalties", "high", "Imposes mandatory 100% clawback of signing bonus upon departure within 12 months."),
+        (r'\birrevocably assigns? to Company\b|\binventions, developments, designs\b', "Comprehensive Inventions Assignment", "other", "high", "Assigns all intellectual property and inventions to Company including creations outside working hours.")
     ]
+
 
     for chunk in chunks:
         sentences = split_text_into_sentences(chunk.text)

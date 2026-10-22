@@ -73,10 +73,16 @@ pip install -r requirements.txt
 ### 3. Running via CLI
 
 ```bash
+# Analyze and print audit summary to terminal
 python cli.py --file samples/nda_agreement.docx
-python cli.py --file samples/commercial_lease.pdf
-python cli.py --file samples/saas_msa.docx
+
+# Export a clean, verifiable Markdown audit report
+python cli.py --file samples/nda_agreement.docx --output audit_report.md
+
+# Export structured JSON data for programmatic integrations
+python cli.py --file samples/commercial_lease.pdf --output audit_report.json
 ```
+
 
 ### 4. Running the Web Application
 

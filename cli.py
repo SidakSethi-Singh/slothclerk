@@ -44,6 +44,8 @@ from app.services.analyzer import (
     ensure_quote_sentence_boundary,
     deduplicate_red_flags
 )
+from app.services.exporter import export_markdown, export_json
+
 
 
 def run_deterministic_offline_analysis(doc_id: str, filename: str, chunks: List[Chunk]) -> DocumentAnalysisResponse:
@@ -139,10 +141,11 @@ def run_deterministic_offline_analysis(doc_id: str, filename: str, chunks: List[
                             seen_actions.add(clean_s)
                             dl = extract_deadline_by_regex(clean_s)
                             act_title = clean_s
-                            for prefix in ["Subtenant shall ", "Customer shall ", "Receiving Party shall ", "Provider shall ", "Sublessor shall "]:
+                            for prefix in ["Subtenant shall ", "Customer shall ", "Receiving Party shall ", "Provider shall ", "Sublessor shall ", "Employee shall ", "Company shall "]:
                                 if act_title.startswith(prefix):
                                     act_title = act_title[len(prefix):]
                                     break
+
                             if "certification of destruction" in act_title.lower() or "certification of destruction" in clean_s.lower():
                                 dl = None
                             action_checklist.append(ActionItem(
@@ -242,6 +245,12 @@ def analyze_document(
 
 
 def main():
+    if hasattr(sys.stdout, "reconfigure"):
+        try:
+            sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+        except Exception:
+            pass
+
     parser = argparse.ArgumentParser(description="SlothClerk Document Analysis CLI")
     parser.add_argument(
         "--file",
@@ -253,10 +262,18 @@ def main():
         "--output",
         type=str,
         default=None,
-        help="Optional path to save output JSON"
+        help="Optional path to save output audit report (e.g. report.md or report.json)"
+    )
+    parser.add_argument(
+        "--format",
+        type=str,
+        choices=["markdown", "json"],
+        default=None,
+        help="Export format ('markdown' or 'json'). Auto-detected from --output extension if omitted."
     )
 
     args = parser.parse_args()
+
     file_path = Path(args.file)
 
     if not file_path.exists():
@@ -390,15 +407,27 @@ def main():
         print(f" [ ] {act.action} (Deadline: {act.deadline or 'N/A'}, Assignee: {act.assignee or 'N/A'})")
         print(f"     Citation: [{act.citation.chunk_id}] | Status: {status_tag} | Quote: \"{act.citation.quote}\"")
 
-    # Serialize JSON
-    json_output = response.model_dump_json(indent=2)
-    if args.output:
-        Path(args.output).write_text(json_output, encoding="utf-8")
-        print(f"\nOutput written to {args.output}")
+    # Export Handling
+    json_output = export_json(response, indent=2)
+    md_output = export_markdown(response)
 
-    print(f"\n================ FULL STRUCTURED JSON OUTPUT ================")
-    print(json_output)
-    print(f"=============================================================\n")
+    if args.output:
+        out_path = Path(args.output)
+        fmt = (args.format or ("json" if out_path.suffix.lower() == ".json" else "markdown")).lower()
+        if fmt == "json":
+            out_path.write_text(json_output, encoding="utf-8")
+        else:
+            out_path.write_text(md_output, encoding="utf-8")
+        print(f"\n[EXPORT] Full {fmt.upper()} report written to: {out_path.resolve()}")
+
+    if args.format == "markdown":
+        print(f"\n================ FULL MARKDOWN AUDIT REPORT ================")
+        print(md_output)
+        print(f"============================================================\n")
+    else:
+        print(f"\n================ FULL STRUCTURED JSON OUTPUT ================")
+        print(json_output)
+        print(f"=============================================================\n")
 
 
 if __name__ == "__main__":
