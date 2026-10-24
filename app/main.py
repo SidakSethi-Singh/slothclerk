@@ -1,6 +1,7 @@
 import os
 import shutil
 import hashlib
+import base64
 from pathlib import Path
 from typing import List, Optional
 from fastapi import FastAPI, File, UploadFile, HTTPException, Depends
@@ -23,6 +24,8 @@ from app.services.vector_store import vector_store
 from app.services.analyzer import analyzer
 from app.services.ollama_client import ollama_client
 from app.services.exporter import export_markdown, export_json
+from app.services.elevenlabs_client import elevenlabs_client
+from app.services.benchmark_service import benchmark_service
 from cli import analyze_document
 
 
@@ -207,6 +210,150 @@ def get_all_chunks_endpoint(doc_id: str):
     """Retrieves all chunks for a document."""
     chunks = vector_store.get_all_chunks(doc_id=doc_id)
     return {"doc_id": doc_id, "chunks": chunks}
+
+
+@app.get("/api/benchmark")
+def get_benchmark_results():
+    """Returns local extraction speed, throughput, and cloud commercial cost comparisons."""
+    try:
+        return benchmark_service.run_local_benchmark()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Benchmark execution failed: {str(e)}")
+
+
+class CostSavingsRequest(BaseModel):
+    docs_per_month: int = 1500
+    avg_tokens_per_doc: int = 12000
+
+
+@app.post("/api/benchmark/calculate")
+def calculate_benchmark_savings(payload: CostSavingsRequest):
+    """Calculates ROI and cost avoidance of local SlothClerk vs OpenAI and Anthropic cloud APIs."""
+    return benchmark_service.calculate_cost_savings(
+        docs_per_month=payload.docs_per_month,
+        avg_tokens_per_doc=payload.avg_tokens_per_doc
+    )
+
+
+class VoiceBriefingRequest(BaseModel):
+    analysis: dict
+    voice_id: Optional[str] = None
+
+
+@app.post("/api/voice/briefing")
+def generate_voice_briefing(payload: VoiceBriefingRequest):
+    """
+    Generates a spoken executive audio briefing using ElevenLabs.
+    If ElevenLabs API key is missing or offline mode active, returns script for browser TTS fallback.
+    """
+    script = elevenlabs_client.build_briefing_script(payload.analysis)
+
+    if not elevenlabs_client.is_configured():
+        return {
+            "status": "browser_fallback",
+            "provider": "Web Speech API (Browser Native)",
+            "script": script,
+            "has_audio": False,
+            "message": "ElevenLabs API key not configured. Using browser speech synthesis."
+        }
+
+    try:
+        audio_bytes = elevenlabs_client.synthesize_speech(script, voice_id=payload.voice_id)
+        audio_b64 = base64.b64encode(audio_bytes).decode("utf-8")
+        return {
+            "status": "success",
+            "provider": "ElevenLabs",
+            "voice_id": payload.voice_id or elevenlabs_client.default_voice_id,
+            "script": script,
+            "has_audio": True,
+            "audio_base64": f"data:audio/mpeg;base64,{audio_b64}"
+        }
+    except Exception as e:
+        return {
+            "status": "error_fallback",
+            "provider": "Web Speech API",
+            "script": script,
+            "has_audio": False,
+            "error": str(e)
+        }
+
+
+class TTSRequest(BaseModel):
+    text: str
+    voice_id: Optional[str] = None
+
+
+@app.post("/api/voice/tts")
+def synthesize_tts(payload: TTSRequest):
+    """Synthesizes arbitrary text (e.g. red flag risk explanation) via ElevenLabs."""
+    if not elevenlabs_client.is_configured():
+        return {
+            "status": "browser_fallback",
+            "text": payload.text,
+            "has_audio": False
+        }
+    try:
+        audio_bytes = elevenlabs_client.synthesize_speech(payload.text, voice_id=payload.voice_id)
+        audio_b64 = base64.b64encode(audio_bytes).decode("utf-8")
+        return {
+            "status": "success",
+            "has_audio": True,
+            "audio_base64": f"data:audio/mpeg;base64,{audio_b64}"
+        }
+    except Exception as e:
+        return {
+            "status": "error_fallback",
+            "text": payload.text,
+            "has_audio": False,
+            "error": str(e)
+        }
+
+
+@app.get("/api/samples")
+def list_sample_documents():
+    """Lists available pre-loaded contract samples for instant 1-click audit testing."""
+    samples_dir = Path(__file__).parent.parent / "samples"
+    samples_list = []
+    if samples_dir.exists():
+        for file in samples_dir.iterdir():
+            if file.suffix.lower() in [".pdf", ".docx"]:
+                display_name = file.stem.replace("_", " ").title()
+                samples_list.append({
+                    "filename": file.name,
+                    "title": display_name,
+                    "format": file.suffix.upper().lstrip("."),
+                    "size_bytes": file.stat().st_size
+                })
+    return {"samples": samples_list}
+
+
+@app.post("/api/samples/analyze/{sample_name}", response_model=DocumentAnalysisResponse)
+def analyze_sample_document(sample_name: str):
+    """Runs immediate analysis on a bundled sample document."""
+    samples_dir = Path(__file__).parent.parent / "samples"
+    target = samples_dir / sample_name
+    if not target.exists():
+        raise HTTPException(status_code=404, detail=f"Sample document '{sample_name}' not found.")
+
+    segments = extract_document(target)
+    doc_id = f"sample_{target.stem}"
+    chunks = create_chunks(doc_id=doc_id, segments=segments, chunk_size=settings.CHUNK_SIZE, chunk_overlap=settings.CHUNK_OVERLAP)
+
+    try:
+        vector_store.add_chunks(doc_id=doc_id, chunks=chunks)
+    except Exception as e:
+        print(f"[VECTOR STORE WARNING] Failed to persist embeddings: {e}")
+
+    return analyze_document(doc_id=doc_id, filename=target.name, chunks=chunks)
+
+
+# Serve Landing Page (.tech showcase)
+@app.get("/landing")
+def serve_landing_page():
+    landing_file = STATIC_DIR / "landing.html"
+    if not landing_file.exists():
+        return JSONResponse({"message": "Landing page is being generated..."})
+    return FileResponse(landing_file)
 
 
 # Serve Single-Page App

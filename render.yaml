@@ -1,0 +1,23 @@
+services:
+  - type: web
+    name: slothclerk
+    runtime: python
+    buildCommand: "pip install --upgrade pip && pip install -r requirements.txt"
+    startCommand: "uvicorn app.main:app --host 0.0.0.0 --port $PORT"
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.8
+      - key: PORT
+        value: 10000
+      - key: RENDER
+        value: "true"
+      - key: OFFLINE_MODE_ONLY
+        value: "false"
+      - key: DEMO_MODE_IF_NO_OLLAMA
+        value: "true"
+      - key: ELEVENLABS_API_KEY
+        sync: false
+      - key: ELEVENLABS_VOICE_ID
+        value: "21m00Tcm4TlvDq8ikWAM"

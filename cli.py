@@ -271,8 +271,18 @@ def main():
         default=None,
         help="Export format ('markdown' or 'json'). Auto-detected from --output extension if omitted."
     )
+    parser.add_argument(
+        "--benchmark",
+        action="store_true",
+        help="Run local vs cloud performance, privacy, and ROI benchmark suite."
+    )
 
     args = parser.parse_args()
+
+    if args.benchmark:
+        from benchmark import run_cli_benchmark
+        run_cli_benchmark()
+        return
 
     file_path = Path(args.file)
 

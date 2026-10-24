@@ -23,6 +23,15 @@ class Settings(BaseSettings):
     OFFLINE_MODE_ONLY: bool = True
     REQUEST_TIMEOUT_SECONDS: float = 120.0
 
+    # ElevenLabs Voice settings
+    ELEVENLABS_API_KEY: str = ""
+    ELEVENLABS_VOICE_ID: str = "21m00Tcm4TlvDq8ikWAM"  # Rachel (calm, clear executive voice)
+    ELEVENLABS_MODEL_ID: str = "eleven_turbo_v2_5"
+
+    # Cloud & Render deployment settings
+    RENDER: bool = False
+    DEMO_MODE_IF_NO_OLLAMA: bool = True
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
